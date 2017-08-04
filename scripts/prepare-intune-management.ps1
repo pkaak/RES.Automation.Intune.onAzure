@@ -1,13 +1,19 @@
 ﻿<#
  
-.COPYRIGHT
-Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT license.
-See LICENSE in the project root for license information.
-
+This scripts prepares the machine to do remote management with powershell to Intune on Azure.
+It will install NuGet, Install the preview or final AzureAD module and create a password file for your tenant.
+After this it will authenticate to Azure Graph API to set rights. Please authenticate with a Global Administrator account.
 #>
 
 ####################################################
- 
+# Preview = 0 - Install AzureAD module
+#           1 - Install AzureAD Preview module
+$Preview = 1
+
+# Password-file location
+$PwLocation = "c:\Intune\IntuneCredentials.txt"
+
+
 function Get-AuthToken {
 
 <#
@@ -147,90 +153,33 @@ $authority = "https://login.windows.net/$Tenant"
 }
  
 ####################################################
-
-Function Get-ManagedDeviceOverview(){
-
-<#
-.SYNOPSIS
-This function is used to get Managed Device Overview from the Graph API REST interface
-.DESCRIPTION
-The function connects to the Graph API Interface and gets the Managed Device Overview
-.EXAMPLE
-Get-ManagedDeviceOverview
-Returns Managed Device Overview configured in Intune
-.NOTES
-NAME: Get-ManagedDeviceOverview
-#>
-
-[cmdletbinding()]
-
-
-$graphApiVersion = "Beta"
-$Resource = "managedDeviceOverview"
-
-    try {
-
-
-
-
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
-        Invoke-RestMethod -Uri $uri –Headers $authToken –Method Get
-
-
-
-    }
-
-    catch {
-
-    $ex = $_.Exception
-    $errorResponse = $ex.Response.GetResponseStream()
-    $reader = New-Object System.IO.StreamReader($errorResponse)
-    $reader.BaseStream.Position = 0
-    $reader.DiscardBufferedData()
-    $responseBody = $reader.ReadToEnd();
-    Write-Host "Response content:`n$responseBody" -f Red
-    Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
-    write-host
-    break
-
-    }
-
-}
-
-
 # Prepare for Intune on Azure management
 # Need Powershell 5/Windows Management Framework 5 and Package NuGet
 if ($PSVersionTable.PSVersion.Major -notmatch '5') {
-    Write-Host "Powershell 5.x / Windows Management Framework 5 is needed for the preparation" 
+    Write-Host -ForegroundColor Yellow "Powershell 5.x / Windows Management Framework 5 is needed for the preparation" 
     exit
 }
+Write-Host -ForegroundColor Yellow "Powershell 5 or higher found. Installing NuGet"
 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-
-# Preview = 0 - Install AzureAD module
-#           1 - Install AzureAD Preview module
-
-$Preview = 1
-
-# Password-file location
-$PwLocation = "c:\Intune\IntuneCredentials.txt"
 
 # Install AzureAD module or AzureAD Preview
 if ($Preview -eq 0){
+    Write-Host -ForegroundColor Yellow "Preview False: Installing AzureAD module"
     Install-Module AzureAD
 }
 else {
+    Write-Host -ForegroundColor Yellow "Preview False: Installing AzureAD module"
     Install-Module AzureADPreview
 }
 
 # Create Password file
+Write-Host -ForegroundColor Yellow "Creating Password file"
 Read-Host -Prompt "Enter your tenant password" -AsSecureString | ConvertFrom-SecureString | Out-File $PwLocation
 
-
 ####################################################
-
 #Authentication and set rights for remote management
 
-write-host
+Write-Host -ForegroundColor Yellow "First Time Authentication - Please accept requested rights when asked"
 
 # Checking if authToken exists before running authentication
 if($global:authToken){
